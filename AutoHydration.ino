@@ -25,7 +25,7 @@ char ssid[] = WIFISSID;
 char pass[] = WIFIPASS;
 
 
-#define PUMP_PIN D6  //GPIO 0 pin 15
+#define PUMP_PIN D7 //6  //GPIO 0 pin 15
 #define LED_PIN D4
 #define BUTTON_1_PIN D8
 #define SELECTOR_PIN A0
@@ -456,10 +456,10 @@ void stopPump(const long&)
 void startPump(const long&)
 {
     using namespace arduino::utils;
-    LOG_MSG("Start pump " << (TimeValue)TIME.getEpochTime() ) ;
+    LOG_MSG("Start pump " << (TimeValue)TIME.getEpochTime() << (TimeValue)lastWateringTime) ;
 
     //prevent frequent work or any illegal execution
-    if ( lastWateringTime > TIME.getEpochTime() - 30 * Timer::MINUTE )
+    if (0 != lastWateringTime && lastWateringTime > TIME.getEpochTime() - 30 /*sec*/ )
         return;
 
     digitalWrite( PUMP_PIN, HIGH );
@@ -599,7 +599,8 @@ void switchMode ( Mode i_mode = IDLE )
             pumpTimer.addRecuringTask( startWateringTime , workFrequency_Hours * Timer::HOUR, startPump );
 
             nextWateringTime = startWateringTime;
-            lastWateringTime = startWateringTime;
+			if (0 == lastWateringTime)
+				lastWateringTime = TIME.getEpochDate();
 
             if ( mode & SETUP_2 )
             {
