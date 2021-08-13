@@ -1,0 +1,5 @@
+﻿network.port=8000
+
+recipe.hooks.sketch.prebuild.1.pattern=perl.exe {build.project_path}/../BuildScripts/generateVersion.pl "{build.project_path}/{build.project_name}" {build.path}
+recipe.hooks.sketch.prebuild.2.pattern=perl.exe {build.project_path}/../BuildScripts/injectJS.pl "{build.path}/resource.h" {build.project_path}
+
