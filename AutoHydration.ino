@@ -587,7 +587,9 @@ auto bmeReadHumidity()
 
 class LandingPage_RequestHandler : public RequestHandler
 {
-private:
+private :
+	uint16_t m_index_to_load_save = 0;
+public:
 	struct TimerTask
 	{
 		uint8 id = 0;
@@ -596,15 +598,38 @@ private:
 		bool recuring = false;
 		bool enb = false;
 
-		void schedule()
+		TimerTask& schedule()
 		{
-			if (this->enb)
+			if ( this->enb )
 			{
+				while ( this->date_time < TIME.getEpochTime() ) 
+					date_time += arduino::utils::Timer::DAY;
+
 				if (!recuring)
 					pumpTimer.addTask(date_time, [this](long&) {  (0 == this->code) ? pump.start() : pump.stop(); this->enb = false; });
 				else
 					pumpTimer.addRecuringTask(date_time, arduino::utils::Timer::DAY, [this](long&) { (0 == this->code) ? pump.start() : pump.stop(); this->date_time += arduino::utils::Timer::DAY; });
 			}
+
+			return *this;
+		}
+
+		uint16_t save( uint16_t index ) {
+			index = EEPROM_Adapter_t::save(id, index);
+			index = EEPROM_Adapter_t::save(date_time, index);
+			index = EEPROM_Adapter_t::save(code, index);
+			index = EEPROM_Adapter_t::save(recuring, index);
+			index = EEPROM_Adapter_t::save(enb, index);
+			return index;
+		}
+
+		bool load( uint16_t &index ) {
+			bool rc = EEPROM_Adapter_t::load(id, index);
+			rc &= EEPROM_Adapter_t::load(date_time, index);
+			rc &= EEPROM_Adapter_t::load(code, index);
+			rc &= EEPROM_Adapter_t::load(recuring, index);
+			rc &= EEPROM_Adapter_t::load(enb, index);
+			return rc;
 		}
 
 		String toJson()
@@ -632,6 +657,30 @@ private:
 			return data;
 		}
 	} tt[10];
+
+
+public:
+	void load( uint16_t index ) {
+		m_index_to_load_save = index;
+		
+		for ( int i = 0; i < SIZE_OF_ARR(tt); i++ ){
+			if (!tt[i].load(index))
+				break;
+
+			tt[i].schedule();
+		}
+	}
+
+	void save( ) {
+			uint16_t index = m_index_to_load_save;
+			for (int i = 0; i < SIZE_OF_ARR(tt) ; i++)
+			{
+				if (tt[i].enb) {
+					index = tt[i].save(index);
+				}
+			}
+	}
+
 public:
 	bool canHandle(HTTPMethod method, String uri) override {
 		LOG_MSG("Request : " << uri << " method " << method << " can handle : " << "dash or fput");
@@ -776,6 +825,8 @@ public:
 				LOG_MSG(tt[i].toJson());
 				tt[i].schedule();
 			}
+
+			save();
 		}
 
 		PlaceHolder p("data", "schedule updated with " + String(tt_index) + " entities");
@@ -902,7 +953,7 @@ void setup()
 	TIME.begin(); //no need the time starts from 0
 
 	bool sts = true;
-	uint16 index = 0;
+	static uint16 index = 0;
 	sts &= EEPROM_Adapter_t::load(ssid, index);
 	sts &= EEPROM_Adapter_t::load(ssid_password, index);
 
@@ -1008,7 +1059,15 @@ void setup()
 
 	arduino::utils::OTA_Init(BUILD_ID);
 
-	server.addHandler(new LandingPage_RequestHandler());
+	idleTimer.addTask( TIME.getEpochDate(), [](long&) {auto* handler = new LandingPage_RequestHandler(); handler->load(index); server.addHandler(handler); } );
+
+	//auto* handler = new LandingPage_RequestHandler();
+	
+	//handler->load(index);
+
+
+	//server.addHandler(handler);
+
 	server.addHandler(new Hydration_RequestHander("run"));
 	server.on("/test", []() { Led tst(LED_PIN); tst.rapid_blynk(2000); server.send(200, "text/html", success_html);  });
 	server.on("/clean", []() {
@@ -1150,7 +1209,7 @@ void loop()
 		[]() { (pump.on()) ? pump.stop(TIME.getEpochTime()) : pump.start(TIME.getEpochTime()); },
 		[]() { (pump.on()) ? pump.stop(TIME.getEpochTime()) : pump.start(TIME.getEpochTime()); });
 
-
+	botton.run();
 	OTA_CHECK_AND_UPDATE;
 
 	server.handleClient();
@@ -1170,7 +1229,7 @@ void loop()
 
 	TIME.run();
 	pumpTimer.run();
-	botton.run();
+	
 	idleTimer.run();
 }
 
