@@ -675,9 +675,7 @@ public:
 			uint16_t index = m_index_to_load_save;
 			for (int i = 0; i < SIZE_OF_ARR(tt) ; i++)
 			{
-				if (tt[i].enb) {
-					index = tt[i].save(index);
-				}
+				index = tt[i].save(index);
 			}
 	}
 
